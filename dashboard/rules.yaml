@@ -1,0 +1,48 @@
+rules:
+  - rule_id: DET-001
+    name: PowerShell high severity (non-benign parent)
+    event_id: [1, 3, 11, 22]
+    image_contains: powershell.exe
+    severity_required: high
+    mitre_id: T1059.001
+    mitre_tactic: Execution
+    filter_benign_parent: true
+
+  - rule_id: DET-002
+    name: Cmd.exe high severity (non-benign parent)
+    event_id: [1, 3, 11, 22]
+    image_contains: cmd.exe
+    severity_required: high
+    mitre_id: T1059.003
+    mitre_tactic: Execution
+    filter_benign_parent: true
+
+  - rule_id: DET-003
+    name: LOLBIN network connection
+    event_id: [3]
+    image_any:
+      - cmd.exe
+      - powershell.exe
+      - pwsh.exe
+    mitre_id: T1059
+    mitre_tactic: Command and Control
+
+  - rule_id: DET-004
+    name: LOLBIN file creation
+    event_id: [11]
+    image_any:
+      - cmd.exe
+      - powershell.exe
+      - pwsh.exe
+    mitre_id: T1059
+    mitre_tactic: Execution
+
+  - rule_id: DET-005
+    name: PowerShell file creation in user/profile folders
+    event_id: [11]
+    image_contains: powershell.exe
+    path_prefix_any:
+      - "c:\\users\\"
+      - "c:\\programdata\\"
+    mitre_id: T1059.001
+    mitre_tactic: Execution

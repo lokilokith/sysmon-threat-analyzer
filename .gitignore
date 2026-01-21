@@ -1,0 +1,51 @@
+# =====================
+# Python
+# =====================
+__pycache__/
+*.pyc
+*.pyo
+
+# =====================
+# Virtual environment
+# =====================
+venv/
+.env
+
+# =====================
+# Databases (LOCAL ONLY)
+# =====================
+*.db
+*.sqlite
+*.sqlite3
+
+# =====================
+# Runtime / Generated Data (CRITICAL)
+# =====================
+data/runs/
+data/uploads/
+uploads/
+dashboard/instance/
+
+# =====================
+# Generated output
+# =====================
+output/
+.dist/
+
+# =====================
+# Logs
+# =====================
+*.log
+
+# =====================
+# OS junk
+# =====================
+.DS_Store
+Thumbs.db
+
+# =====================
+# Editors / IDEs
+# =====================
+.vscode/
+.idea/
+reports/

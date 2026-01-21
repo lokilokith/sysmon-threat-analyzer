@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>{{ title }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 1.5rem; }
+        .flash { color: #b30000; margin-bottom: 1rem; }
+        label { display: block; margin-bottom: 0.5rem; }
+        input[type="file"] { margin-bottom: 1rem; }
+        button { padding: 0.4rem 0.8rem; }
+    </style>
+</head>
+<body>
+    <h1>{{ title }}</h1>
+    <button><a href="{{ url_for('dashboard') }}">&larr; Back to dashboard</a></button>
+
+    <p>{{ description }}</p>
+
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <div class="flash">
+          {% for msg in messages %}
+            <div>{{ msg }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <form method="post" enctype="multipart/form-data">
+        <label for="file">Choose file:</label>
+        <input type="file" id="file" name="file" accept="{{ accept }}">
+        <br>
+        <button type="submit">Upload</button>
+    </form>
+</body>
+</html>

@@ -1,0 +1,1509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SentinelTrace</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+    :root {
+        /* Lighter, Professional Dark Theme (Midnight Slate) */
+        --bg-body: #111827;        
+        --bg-grad-start: #1e293b; 
+        --bg-grad-end: #0f172a;    
+        
+        /* Glassmorphism Cards */
+        --bg-card: rgba(30, 41, 59, 0.65);
+        --bg-card-hover: rgba(51, 65, 85, 0.8);
+        --bg-card-solid: #1e293b;
+        --backdrop-blur: 16px;
+        
+        /* Inputs & Borders */
+        --bg-input: rgba(15, 23, 42, 0.6);
+        --border-color: rgba(148, 163, 184, 0.15); 
+        --border-highlight: rgba(148, 163, 184, 0.3);
+        
+        /* Typography */
+        --text-main: #f1f5f9; 
+        --text-muted: #94a3b8;
+        --text-dim: #64748b;
+        
+        /* Neon Accents */
+        --accent-blue: #60a5fa;       
+        --accent-cyan: #22d3ee;
+        --accent-red: #f87171;        
+        --accent-orange: #fbbf24;
+        --accent-green: #34d399;
+        
+        /* Effects */
+        --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        --shadow-glow: 0 0 15px rgba(59, 130, 246, 0.15);
+    }
+
+    * { box-sizing: border-box; }
+    
+    body { 
+        font-family: 'Inter', system-ui, -apple-system, sans-serif; 
+        margin: 0; 
+        background-color: var(--bg-body);
+        background-image: 
+            linear-gradient(to right, rgba(255,255,255,0.03) 1px, transparent 1px),
+            linear-gradient(to bottom, rgba(255,255,255,0.03) 1px, transparent 1px),
+            radial-gradient(circle at 50% 0%, #1e293b 0%, var(--bg-body) 70%);
+        background-size: 40px 40px, 40px 40px, 100% 100%;
+        background-attachment: fixed;
+        color: var(--text-main); 
+        line-height: 1.5;
+        overflow-x: hidden;
+    }
+
+    /* --- ANIMATIONS --- */
+    @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes radar-ripple {
+        0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+        70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+    }
+
+    @keyframes scan-line {
+        0% { left: -50%; }
+        100% { left: 150%; }
+    }
+
+    .animate-entry {
+        opacity: 0;
+        animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    .delay-1 { animation-delay: 0.1s; }
+    .delay-2 { animation-delay: 0.2s; }
+    .delay-3 { animation-delay: 0.3s; }
+    .delay-4 { animation-delay: 0.4s; }
+    .delay-5 { animation-delay: 0.5s; }
+
+    .container { 
+        max-width: 1440px; 
+        margin: 0 auto; 
+        padding: 24px 32px; 
+    }
+
+    /* --- HEADER --- */
+    header { 
+        background: rgba(30, 41, 59, 0.8);
+        backdrop-filter: blur(var(--backdrop-blur));
+        border-bottom: 1px solid var(--border-color);
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        padding: 16px 32px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        overflow: hidden; 
+    }
+    header::after {
+        content: '';
+        position: absolute;
+        top: 0; bottom: 0; width: 50%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.03), transparent);
+        transform: skewX(-20deg);
+        animation: scan-line 4s infinite linear;
+        pointer-events: none;
+    }
+
+    header h1 { 
+        margin: 0; 
+        font-size: 18px; 
+        font-weight: 700; 
+        letter-spacing: 0.5px; 
+        text-transform: uppercase;
+        color: #fff;
+        text-shadow: 0 0 20px rgba(96, 165, 250, 0.4);
+    }
+    header p { margin: 2px 0 0 0; font-size: 12px; color: var(--text-muted); }
+    
+    .model-badge {
+        background: rgba(15, 23, 42, 0.5);
+        color: var(--accent-blue);
+        font-size: 11px;
+        padding: 6px 12px;
+        border-radius: 6px;
+        border: 1px solid rgba(96, 165, 250, 0.3);
+        font-family: 'JetBrains Mono', monospace;
+        display: flex;
+        align-items: center;
+        box-shadow: inset 0 0 10px rgba(59, 130, 246, 0.1);
+    }
+    .model-badge::before {
+        content: '';
+        width: 6px; height: 6px;
+        background: var(--accent-green);
+        border-radius: 50%;
+        margin-right: 8px;
+        box-shadow: 0 0 6px var(--accent-green);
+        animation: pulse-green 2s infinite;
+    }
+
+    /* --- SUMMARY BANNERS --- */
+    .summary-banner {
+        padding: 20px 24px;
+        margin: 24px 0;
+        border-radius: 8px;
+        font-size: 15px;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        position: relative;
+        border: 1px solid transparent;
+        box-shadow: var(--shadow-md);
+    }
+    .summary-banner.safe { 
+        background: rgba(16, 185, 129, 0.1); 
+        border-color: rgba(16, 185, 129, 0.2);
+        color: #6ee7b7;
+    }
+    .summary-banner.warn { 
+        background: rgba(245, 158, 11, 0.1); 
+        border-color: rgba(245, 158, 11, 0.2);
+        color: #fcd34d;
+    }
+    .summary-banner.danger { 
+        background: rgba(239, 68, 68, 0.15); 
+        border-color: rgba(239, 68, 68, 0.3);
+        color: #fca5a5;
+        animation: radar-ripple 2s infinite;
+    }
+
+    /* --- SITUATION STRIP --- */
+    .situation-strip {
+        background: var(--bg-card);
+        backdrop-filter: blur(var(--backdrop-blur));
+        border: 1px solid var(--border-color);
+        border-top: 2px solid rgba(255,255,255,0.1);
+        border-radius: 12px;
+        padding: 30px;
+        margin: 24px 0;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(200px, 1fr)); 
+        gap: 40px;
+        box-shadow: var(--shadow-md);
+    }
+    
+    .situation-item {
+        position: relative;
+        transition: transform 0.3s ease;
+    }
+    .situation-item:hover { transform: translateY(-3px); }
+    
+    .situation-item:not(:last-child)::after {
+        content: '';
+        position: absolute;
+        right: -20px; top: 10%; bottom: 10%;
+        width: 1px;
+        background: linear-gradient(to bottom, transparent, var(--border-color), transparent);
+    }
+
+    .situation-item h3 {
+        margin: 0 0 10px 0;
+        font-size: 11px;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        font-weight: 600;
+    }
+    .situation-item .value {
+        font-size: 26px;
+        font-weight: 700;
+        color: var(--text-main);
+        margin: 4px 0;
+        font-family: 'JetBrains Mono', monospace;
+        text-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    }
+    .situation-item .subtitle {
+        font-size: 12px;
+        color: var(--text-dim);
+        margin-top: 8px;
+        line-height: 1.4;
+    }
+
+    /* --- TEXT & TABLES --- */
+    h2 { 
+        font-size: 15px; 
+        margin: 32px 0 16px 0; 
+        font-weight: 600; 
+        text-transform: uppercase; 
+        letter-spacing: 1px;
+        color: var(--text-main);
+        display: flex;
+        align-items: center;
+    }
+    h2::before {
+        content: '';
+        display: inline-block;
+        width: 4px; height: 16px;
+        background: var(--accent-blue);
+        margin-right: 12px;
+        border-radius: 2px;
+        box-shadow: 0 0 8px var(--accent-blue);
+    }
+    
+    table { 
+        width: 100%; 
+        border-collapse: separate; 
+        border-spacing: 0; 
+        margin: 12px 0; 
+        border-radius: 8px;
+        overflow: hidden;
+        border: 1px solid var(--border-color);
+    }
+    th { 
+        background-color: rgba(30, 41, 59, 0.8); 
+        font-weight: 600; 
+        color: var(--text-muted); 
+        text-transform: uppercase; 
+        font-size: 11px; 
+        letter-spacing: 0.8px; 
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--border-color);
+        text-align: left;
+    }
+    td { 
+        padding: 14px 16px; 
+        border-bottom: 1px solid var(--border-color); 
+        color: var(--text-main); 
+        font-size: 13px;
+        background: rgba(30, 41, 59, 0.3);
+        transition: background 0.2s;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background-color: rgba(51, 65, 85, 0.5); }
+    
+    td.meta { 
+        font-family: 'JetBrains Mono', monospace; 
+        font-size: 12px; 
+        color: var(--text-muted); 
+    }
+
+    /* --- BASELINE TABLE FIXED LAYOUT --- */
+    .baseline-table {
+        width: 100%;
+        table-layout: fixed;          /* critical: enforce column widths */
+    }
+
+    .baseline-table th,
+    .baseline-table td {
+        padding: 8px 10px;
+        vertical-align: top;
+    }
+
+    .baseline-table .col-image    { width: 32%; }
+    .baseline-table .col-type     { width: 10%; }
+    .baseline-table .col-exec     { width: 10%; text-align: right; }
+    .baseline-table .col-window   { width: 18%; }
+    .baseline-table .col-status   { width: 10%; text-align: center; }
+    .baseline-table .col-why      { width: 20%; }
+
+    /* Truncate long text cells */
+    .baseline-table .col-image,
+    .baseline-table .col-window {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    /* Let Why Non-Alerting wrap instead if you prefer more detail */
+    .baseline-table .col-why {
+        white-space: normal;
+        word-wrap: break-word;
+    }
+
+    /* --- CARDS & PANELS --- */
+    .card-panel {
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 24px;
+        margin: 24px 0;
+        backdrop-filter: blur(10px);
+        box-shadow: var(--shadow-sm);
+        transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    }
+    .card-panel:hover {
+        border-color: var(--border-highlight);
+        box-shadow: var(--shadow-glow);
+        transform: translateY(-2px);
+    }
+
+    .incident-current {
+        border-left: 4px solid var(--accent-blue);
+        background: linear-gradient(90deg, rgba(59, 130, 246, 0.05) 0%, rgba(30, 41, 59, 0.6) 100%);
+    }
+    .incident-lists {
+        background: rgba(15, 23, 42, 0.5);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        padding: 16px;
+        font-family: 'JetBrains Mono', monospace;
+        max-height: 200px;
+        overflow-y: auto;
+    }
+
+    /* STATS GRID */
+    .stats { display: flex; flex-wrap: wrap; gap: 20px; }
+    .stat-card {
+        flex: 1 1 160px;
+        padding: 20px;
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        transition: all 0.3s;
+    }
+    .stat-card:hover {
+        border-color: var(--accent-blue);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+    .stat-card p { 
+        font-family: 'JetBrains Mono', monospace; 
+        font-size: 32px; 
+        margin: 8px 0;
+        background: linear-gradient(180deg, #fff, #94a3b8);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    /* --- KILL CHAIN FLOW --- */
+    .killchain-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        margin: 20px 0;
+    }
+    .killchain-step {
+        flex: 1 1 150px;
+        padding: 20px 16px;
+        text-align: center;
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        position: relative;
+        transition: all 0.3s;
+    }
+    
+    .killchain-step:not(:last-child)::after {
+        content: '→';
+        position: absolute;
+        right: -14px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--border-color);
+        font-family: 'Inter', sans-serif;
+        font-weight: 300;
+        z-index: 2;
+    }
+    
+    .killchain-step:hover {
+        border-color: var(--accent-blue);
+        transform: translateY(-3px);
+        z-index: 5;
+    }
+    
+    .killchain-step.active {
+        border-color: var(--accent-blue);
+        background: linear-gradient(180deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.05) 100%);
+        box-shadow: 0 0 20px rgba(59, 130, 246, 0.1) inset;
+    }
+    
+    .killchain-step .count {
+        font-size: 28px;
+        font-family: 'JetBrains Mono', monospace;
+        color: var(--accent-blue);
+        margin: 10px 0;
+        font-weight: 700;
+    }
+
+    /* --- BUTTONS & INPUTS --- */
+    .btn-upload, .btn-summary, button[type="submit"], .btn-expand {
+        padding: 10px 18px;
+        font-size: 12px;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        text-decoration: none;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+    
+    .btn-upload {
+        border: 1px solid var(--accent-blue);
+        color: var(--accent-blue);
+        background: rgba(59, 130, 246, 0.05);
+    }
+    .btn-upload:hover { 
+        background: var(--accent-blue); 
+        color: #fff;
+        box-shadow: 0 0 15px rgba(59, 130, 246, 0.4);
+    }
+    
+    .btn-summary {
+        border: 1px solid var(--border-color);
+        color: var(--text-main);
+        background: var(--bg-card-solid);
+        margin-right: 12px;
+    }
+    .btn-summary:hover { 
+        background: var(--bg-card-hover); 
+        border-color: var(--text-muted);
+    }
+
+    .btn-expand {
+        padding: 6px 12px;
+        font-size: 11px;
+        background: transparent;
+        border: 1px solid var(--border-color);
+        color: var(--accent-blue);
+    }
+    .btn-expand:hover { border-color: var(--accent-blue); background: rgba(59, 130, 246, 0.1); }
+
+    /* Filter Bar */
+    .filter-bar {
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 16px 20px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        box-shadow: var(--shadow-sm);
+    }
+    
+    input[type="text"], select, textarea {
+        background-color: var(--bg-input) !important;
+        color: var(--text-main) !important;
+        border: 1px solid var(--border-color) !important;
+        border-radius: 6px;
+        padding: 8px 12px;
+        transition: all 0.2s;
+    }
+    input[type="text"]:focus, select:focus, textarea:focus {
+        outline: none;
+        border-color: var(--accent-blue) !important;
+        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        background-color: rgba(15, 23, 42, 0.8) !important;
+    }
+
+    /* --- COLORS & TAGS --- */
+    .tag {
+        display: inline-block;
+        padding: 4px 8px;
+        background: rgba(59, 130, 246, 0.1);
+        color: #93c5fd;
+        border-radius: 4px;
+        font-size: 11px;
+        border: 1px solid rgba(59, 130, 246, 0.2);
+        font-weight: 500;
+    }
+    .tag-critical {
+        background: rgba(239, 68, 68, 0.1);
+        color: #fca5a5;
+        border-color: rgba(239, 68, 68, 0.2);
+    }
+    .low { color: var(--accent-green); }      
+    .medium { color: var(--accent-orange); }  
+    .high { color: var(--accent-red); text-shadow: 0 0 10px rgba(239, 68, 68, 0.3); } 
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: var(--bg-body); }
+    ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+    
+    /* Collapsible */
+    .collapsible-header {
+        cursor: pointer;
+        padding: 16px;
+        background: rgba(30, 41, 59, 0.4);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        margin-top: 16px;
+        font-weight: 600;
+        color: var(--text-muted);
+        font-size: 13px;
+        transition: background 0.2s;
+    }
+    .collapsible-header:hover { background: rgba(30, 41, 59, 0.7); color: var(--text-main); }
+    .collapsible-content {
+        display: none;
+        padding: 20px;
+        border: 1px solid var(--border-color);
+        border-top: none;
+        border-radius: 0 0 6px 6px;
+        background: rgba(15, 23, 42, 0.4);
+    }
+    .collapsible-content.expanded { display: block; animation: fadeInUp 0.3s ease; }
+    </style>
+</head>
+<body>
+    
+<div class="container">
+    <header class="animate-entry">
+        <div>
+            <h1>Endpoint Telemetry Correlation & Threat Hunting Framework</h1>
+            <p>Confidence-driven SOC telemetry analyzer over Sysmon events</p>
+        </div>
+        <div class="model-badge">
+            Model: Baseline-Driven Behavioral Model · Correlation-Enabled
+        </div>
+    </header>
+
+    <div class="animate-entry delay-1" style="font-size:10px; color:#64748b; margin: 8px 32px; font-family:'JetBrains Mono', monospace; text-align: right;">
+        Run: {{ run_id }} |
+        Total Events: {{ total_events }}
+    </div>
+
+    <div class="animate-entry delay-1" style="font-size:11px; background:rgba(255, 255, 255, 0.05); color:#94a3b8; padding:8px 12px; border-radius:4px; margin: 0 0 24px 0; border:1px dashed rgba(148, 163, 184, 0.2);">
+        ℹ Dashboard intentionally suppresses execution-only variance.
+        Different runs with similar host workloads may appear visually identical.
+    </div>
+
+    
+
+    {% set highest_kill_chain = highest_kill_chain or 'Execution' %}
+    {% set is_alertable = attack_conf_score is not none and attack_conf_score >= 40 %}
+
+    {% if is_alertable %}
+        {% if attack_conf_score is not none and attack_conf_score >= 70 %}
+            <div class="summary-banner danger animate-entry">
+                <span>⚠ CRITICAL THREAT DETECTED: High confidence attack progression observed. Immediate response recommended.</span>
+            </div>
+        {% else %}
+            <div class="summary-banner warn animate-entry">
+                <span>⚠ Suspicious Activity: Anomalous execution detected. Investigation required.</span>
+            </div>
+        {% endif %}
+    {% else %}
+        <div class="summary-banner safe animate-entry">
+            <span>✔ Summary: No confirmed attack. Activity currently assessed as low confidence or baseline.</span>
+        </div>
+    {% endif %}
+
+    {% if request.args.get('kill_chain_stage') %}
+    <div class="animate-entry delay-1" style="background:rgba(59, 130, 246, 0.1); border:1px solid rgba(59, 130, 246, 0.2); color:#93c5fd; padding:12px; font-size:12px; border-radius:8px; margin-bottom:24px; text-align:center;">
+        ℹ Viewing specific stage - Global Confidence Metrics remain based on full scope.
+    </div>
+    {% endif %}
+
+    {% if incident and incident.incident_id %}
+    <div class="card-panel incident-current animate-entry delay-1">
+      <div style="display:flex; flex-wrap:wrap; gap:16px; align-items:center; justify-content:space-between;">
+        <div>
+          <div style="font-size:10px; color:#94a3b8; text-transform:uppercase; letter-spacing:1px; font-weight:700;">Incident Header</div>
+          <div style="font-size:18px; font-weight:700; color:#f1f5f9; margin-top:4px; font-family:'JetBrains Mono', monospace;">
+            {{ incident.incident_id }} – {{ incident.status or 'Triage' }}
+          </div>
+          <div style="font-size:12px; color:#cbd5e1; margin-top:8px;">
+            <span class="tag">Risk: {{ incident.severity or 'Medium' }}</span> 
+            <span class="tag">Conf: {{ attack_conf_score }}</span>
+            <span class="tag">Stage: {{ highest_kill_chain }}</span>
+          </div>
+          <div style="font-size:11px; color:#94a3b8; margin-top:8px;">
+            Host(s): <span style="color:#e2e8f0">{{ incident.computer or 'Unknown' }}</span> ·
+            User(s): <span style="color:#e2e8f0">{{ incident.analyst or 'Unknown' }}</span>
+            </div>
+        </div>
+        <form method="post" action="{{ url_for('update_incident') }}" style="display:flex; flex-wrap:wrap; gap:12px; align-items:center; background:rgba(255,255,255,0.03); padding:12px; border-radius:8px;">
+          <input type="hidden" name="incident_id" value="{{ incident.incident_id }}">
+          <label style="font-size:10px; color:#94a3b8; font-weight:700; text-transform:uppercase;">
+            Status
+            <select name="status" style="display:block; margin-top:4px; font-size:12px; width:150px;">
+              <option value="Triage" {% if incident.status=='Triage' %}selected{% endif %}>Triage</option>
+              <option value="Open" {% if incident.status=='Open' %}selected{% endif %}>Open</option>
+              <option value="Escalated" {% if incident.status=='Escalated' %}selected{% endif %}>Escalated</option>
+              <option value="Closed - Benign" {% if incident.status=='Closed - Benign' %}selected{% endif %}>Closed - Benign</option>
+              <option value="Closed - False Positive" {% if incident.status=='Closed - False Positive' %}selected{% endif %}>Closed - False Positive</option>
+            </select>
+          </label>
+          <label style="font-size:10px; color:#94a3b8; font-weight:700; text-transform:uppercase;">
+            Analyst
+            <input type="text" name="analyst" value="{{ incident.analyst or '' }}" style="display:block; margin-top:4px; font-size:12px; width:130px;">
+          </label>
+          <button type="submit" name="action" value="save" style="margin-top:16px; background:#3b82f6; color:#fff; border:none;">
+            SAVE UPDATE
+          </button>
+        </form>
+      </div>
+      <div style="font-size:10px; color:#64748b; margin-top:8px; text-align:right;">
+        Last updated: {{ incident.updated_at or 'N/A' }}
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="top-buttons animate-entry delay-2" style="margin: 20px 0;">
+       <form action="/setup" method="post" style="display:inline;">
+            <button type="submit" class="btn-upload">
+                <span style="font-size:16px; margin-right:8px;">⇧</span> Upload Sysmon & Rules
+            </button>
+        </form>
+
+        <a href="{{ url_for('details') }}" class="btn-summary">
+            <span style="font-size:16px; margin-right:8px;">👁</span> Open Investigation View
+        </a>
+    </div>
+
+    <form class="filter-bar animate-entry delay-2">
+        <label for="q" style="font-size:11px; font-weight:700; color:#cbd5e1; text-transform:uppercase;">Filter Query</label>
+        <input type="text" id="q" name="q" value="{{ q or '' }}" placeholder="e.g. powershell.exe or Event_id=3"
+               style="width:280px; font-family:'JetBrains Mono', monospace;">
+        
+        <label for="time_range" style="font-size:11px; font-weight:700; margin-left:12px; color:#cbd5e1; text-transform:uppercase;">Time Range</label>
+        <select id="time_range" name="time_range">
+            <option value="all" {% if time_range == 'all' %}selected{% endif %}>All Time</option>
+            <option value="1h" {% if time_range == '1h' %}selected{% endif %}>Last 1 Hour</option>
+            <option value="24h" {% if time_range == '24h' %}selected{% endif %}>Last 24 Hours</option>
+            <option value="7d" {% if time_range == '7d' %}selected{% endif %}>Last 7 Days</option>
+        </select>
+        <button type="submit" style="background:#3b82f6; color:#fff; border:none;">APPLY</button>
+        <a href="{{ url_for('dashboard', run_id=run_id, q=request.args.get('q',''), time_range='all', severity='', kill_chain_stage='') }}"
+           class="btn-summary" style="margin:0; background:transparent;">Reset</a>
+    </form>
+
+    <div class="situation-strip animate-entry delay-3">
+        
+        <div class="situation-item">
+            <h3>Threat Posture</h3>
+            {% if attack_conf_score is none %}
+                <div class="value">Not Assessed</div>
+            {% else %}
+                {% if attack_conf_score >= 70 %}
+                    <div class="value high">High Threat</div>
+                {% elif attack_conf_score >= 40 %}
+                    <div class="value medium">Medium Threat</div>
+                {% else %}
+                    <div class="value low">Low Threat</div>
+                {% endif %}
+
+                <div class="subtitle">
+                  {% if highest_kill_chain in ['Command and Control','Actions on Objectives'] %}
+                    Multi-stage attack progression
+                  {% elif highest_kill_chain in ['Persistence','Privilege Escalation'] %}
+                    Host-level compromise indicators
+                  {% else %}
+                    Execution-only behavioral signal
+                  {% endif %}
+                </div>
+            {% endif %}
+        </div>
+
+        <div class="situation-item">
+            <h3>Confidence Score</h3>
+            {% if attack_conf_score is none %}
+                <div class="value">N/A</div>
+            {% else %}
+                <div class="value {% if attack_conf_score < 40 %}low{% elif attack_conf_score < 70 %}medium{% else %}high{% endif %}">
+                    {{ attack_conf_score }}<span style="font-size:14px; color:#64748b;">/100</span>
+                </div>
+                <div class="subtitle">Derived from deviation + stage progression</div>
+                {% endif %}
+        </div>
+
+        <div class="situation-item">
+            <h3>Model Assessment</h3>
+            
+            {% if not is_alertable %}
+                <div class="value" style="font-size:20px;">Baseline / Context</div>
+                <div class="subtitle">Not alertable by model rules</div>
+            {% elif attack_conf_score >= 70 %}
+                <div class="value" style="font-size:20px;">High Risk Indicated</div>
+                <div class="subtitle">Strong multi-stage indicators</div>
+            {% elif attack_conf_score >= 40 %}
+                <div class="value" style="font-size:20px;">Model-Flagged</div>
+                <div class="subtitle">Investigation warranted</div>
+            {% else %}
+                <div class="value">Not Determined</div>
+            {% endif %}
+        </div>
+
+        <div class="situation-item">
+            <h3>Analyst Status</h3>
+            {% if analyst_verdict %}
+                <div class="value" style="font-size:20px;">{{ analyst_verdict }}</div>
+                <div class="subtitle">Action: {{ analyst_action or 'None' }}</div>
+            {% else %}
+                <div class="value" style="font-size:20px; color:#64748b;">Pending Review</div>
+                <div class="subtitle">No analyst verdict yet</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="collapsible-header animate-entry delay-3" onclick="toggleCollapsible(this)">
+        ℹ Confidence Model Assumptions
+    </div>
+    <div class="collapsible-content">
+        <ul style="font-size:12px; color:#cbd5e1; margin:0; padding-left:20px; line-height:1.8;">
+            <li><strong>Execution Stage Behavior:</strong> Execution-only activity may increase confidence with high deviation and follow-on signals, but is capped by deviation tier and stage trust limits.</li>
+            <li><strong>Deviation Gating:</strong> Low deviation caps confidence regardless of volume.</li>
+            <li><strong>Stage Progression:</strong> Persistence, Privilege Escalation, or C2 raises the confidence ceiling.</li>
+            <li><strong>Correlation Bonus:</strong> Multi-stage correlations may add confidence but never bypass caps.</li>
+            <li><strong>Baseline Suppression:</strong> SYSTEM + low-deviation activity may be suppressed to a fixed noise floor.</li>
+        </ul>
+    </div>
+
+    {% if action_reason %}
+        <p class="animate-entry delay-3" style="background:rgba(59, 130, 246, 0.1); padding:16px; border-radius:6px; border-left:3px solid #3b82f6; margin:16px 0; font-size:13px; color:#e2e8f0;">
+            <strong style="color:#60a5fa; text-transform:uppercase; font-size:11px; display:block; margin-bottom:4px;">Action Reason</strong>
+            {{ action_reason }}
+        </p>
+    {% endif %}
+
+    <div class="card-panel executive-summary animate-entry delay-4" style="border-left: 4px solid var(--accent-blue);">
+        <h3>Executive Conclusion</h3>
+        {% set highest = highest_kill_chain %}
+        {% set missing = 0 %}
+        {% if evidence_state is defined and evidence_state.items %}
+          {% for k, item in evidence_state.items() %}
+            {% if item.present is defined and not item.present %}
+              {% set missing = missing + 1 %}
+            {% endif %}
+          {% endfor %}
+        {% endif %}
+
+        {% if highest in ['Actions on Objectives'] %}
+            <p>Full kill chain observed: <strong style="color:#fff">{{ highest }}</strong>. Complete attack progression detected from reconnaissance through post-compromise objectives.</p>
+        {% elif highest in ['Command and Control'] %}
+            <p>Attack progressed to <strong style="color:#fff">{{ highest }}</strong> stage. Evidence of external C2 communication detected. Missing post-compromise objectives.</p>
+        {% elif highest in ['Persistence', 'Privilege Escalation'] %}
+            <p>Intermediate attack stage detected (<strong style="color:#fff">{{ highest }}</strong>). Host entrenchment or elevation observed. No C2 or exfiltration confirmed.</p>
+        {% else %}
+            <p>Observed activity represents <strong>Execution-only</strong> behaviors. No confirmed post-execution attack progression (Persistence/C2) observed.</p>
+        {% endif %}
+
+        {% if missing > 0 %}
+            <p style="margin-top:12px; font-size:12px; color:#94a3b8; border-top:1px dashed rgba(255,255,255,0.1); padding-top:8px;">
+                Confidence is limited by {{ missing }} unconfirmed indicator(s). Observing missing evidence would increase certainty.
+            </p>
+        {% endif %}
+    </div>
+
+    {% if attack_conf_score is not none %}
+    <div class="card-panel animate-entry delay-4">
+      <h3>Confidence Logic Breakdown</h3>
+      <p style="font-size:12px; color:#cbd5e1; margin-bottom:12px; font-family:'JetBrains Mono', monospace;">
+        Final Score: <strong class="{% if attack_conf_score >= 70 %}high{% endif %}">{{ attack_conf_score }}</strong>
+        {% if attack_conf_level %} <span class="tag">{{ attack_conf_level }}</span>{% endif %}
+      </p>
+      
+      <ul style="font-size:12px; color:#cbd5e1; padding-left:20px; line-height:1.6;">
+        {% if attack_conf_basis %}
+            <strong style="color:#94a3b8;">Reasons:</strong>
+            {% for reason in attack_conf_basis or [] %}
+                <li>{{ reason }}</li>
+            {% endfor %}
+        {% endif %}
+        
+        {% if correlation_score is not none %}
+          <li>Correlation logic contributed <strong>+{{ correlation_score }}</strong> confidence points (non-decisive).</li>
+        {% endif %}
+        {% if dominant_burst and dominant_burst.confidence_reasons %}
+          <li>Dominant burst (<code>{{ dominant_burst.image or 'unknown process' }}</code>) drivers:</li>
+          <ul style="margin-top:4px; color:#94a3b8;">
+            {% for r in dominant_burst.confidence_reasons %}
+              <li>{{ r }}</li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+      </ul>
+    </div>
+    {% endif %}
+
+    {% if incident and incident.incident_id %}
+    <div class="card-panel animate-entry delay-4">
+      <h2 style="font-size:14px; margin:0 0 16px 0;">Analyst Response Console</h2>
+      {% if attack_conf_score and attack_conf_score >= 40 %}
+          <form method="post" action="{{ url_for('update_incident') }}" style="margin-bottom:16px;">
+            <input type="hidden" name="incident_id" value="{{ incident.incident_id }}">
+            <button type="submit" name="action" value="false_positive"
+                    style="padding:8px 12px; font-size:12px; border-radius:4px; border:1px solid #94a3b8; color:#cbd5e1; background:transparent; margin-right:8px; cursor:pointer;">
+              Mark False Positive
+            </button>
+            <button type="submit" name="action" value="escalate"
+                    style="padding:8px 12px; font-size:12px; border-radius:4px; border:1px solid #ef4444; background:rgba(239,68,68,0.1); color:#f87171; margin-right:8px; cursor:pointer; font-weight:600;">
+              ⚠ Escalate to Incident
+            </button>
+            <button type="submit" name="action" value="close_benign"
+                    style="padding:8px 12px; font-size:12px; border-radius:4px; border:1px solid #10b981; color:#34d399; background:rgba(16,185,129,0.1); cursor:pointer;">
+              Close as Benign
+            </button>
+          </form>
+      {% else %}
+          <p style="font-size:11px;color:#94a3b8; margin-bottom:12px; font-style:italic;">
+              Confidence below escalation threshold. Monitoring only.
+          </p>
+      {% endif %}
+
+      <form method="post" action="{{ url_for('add_incident_note') }}">
+        <input type="hidden" name="incident_id" value="{{ incident.incident_id }}">
+        <label style="font-size:11px; font-weight:600; color:#cbd5e1; display:block; margin-bottom:6px;">
+            {% if attack_conf_score >= 40 %} INCIDENT NOTE {% else %} ANALYST ANNOTATION {% endif %}
+        </label>
+        <textarea name="note" rows="3" 
+                  placeholder="{% if attack_conf_score >= 40 %}Add formal incident response note...{% else %}Add non-incident context annotation...{% endif %}"
+                  style="width:100%; font-size:12px; padding:12px; background:var(--bg-input); color:#f1f5f9; border:1px solid var(--border-color); border-radius:6px; resize:vertical; font-family:'Inter', sans-serif;"></textarea>
+        <button type="submit" style="margin-top:8px; padding:6px 16px; font-size:12px; border-radius:4px; border:none; background:#3b82f6; color:#fff; cursor:pointer;">
+          Add Note
+        </button>
+      </form>
+
+      {% if incident.notes %}
+        <div style="margin-top:16px; font-size:11px; color:#cbd5e1;">
+          <strong style="color:#94a3b8; text-transform:uppercase;">History:</strong>
+          <div style="max-height:120px; overflow-y:auto; border-left:2px solid #334155; padding-left:12px; margin-top:8px; white-space:pre-wrap; font-family:'JetBrains Mono', monospace; opacity:0.8;">
+            {{ incident.notes }}
+          </div>
+        </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="telemetry-overview animate-entry delay-4">
+        <h2>Telemetry Overview</h2>
+        <div class="stats">
+            <div class="stat-card">
+                <h3 style="font-size:11px; color:#94a3b8; text-transform:uppercase;">Total Events</h3>
+                <p>
+                    {{ total_events }}
+                    <div style="font-size:10px; color:#60a5fa; margin-top:4px;">
+                        {{ context_run_marker }}
+                    </div>
+                </p>
+            </div>
+            <div class="stat-card">
+                <h3 style="font-size:11px; color:#94a3b8; text-transform:uppercase;">Baseline/Noise</h3>
+                <p>
+                {% if baseline_noise_count is defined %}
+                {% set noise = baseline_noise_count %}
+                {% elif baseline_execution_context is defined %}
+                {% set noise = baseline_execution_context|length %}
+                {% else %}
+                {% set noise = 0 %}
+                {% endif %}
+                {{ noise }}
+                </p>
+                
+            </div>
+
+            <div class="stat-card">
+                <h3 style="font-size:11px; color:#94a3b8; text-transform:uppercase;">High Severity</h3>
+                <p style="color:#f87171">{{ high_count }}</p>
+            </div>
+            <div class="stat-card">
+                <h3 style="font-size:11px; color:#94a3b8; text-transform:uppercase;">Entities</h3>
+                <p style="color:#60a5fa">{{ detections_count }}</p>
+            </div>
+            <div class="stat-card" style="flex-grow: 1; min-width: 240px; align-items:center; justify-content:center;">
+                <canvas id="severityChart" height="100"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="animate-entry delay-5" style="margin: 32px 0;">
+        <h2>Kill Chain Progression</h2>
+        <p style="font-size:12px; color:#94a3b8; margin:0 0 16px 0;">
+            Only stages observable from endpoint telemetry are shown.
+        </p>
+        {% if highest_kill_chain %}
+            <p style="font-size:13px; margin-bottom:16px; color:#cbd5e1;">
+                Highest observed stage: <strong style="color:#3b82f6; text-transform:uppercase;">{{ highest_kill_chain }}</strong>
+            </p>
+        {% endif %}
+        <div class="killchain-row">
+            {% set stages_order = [
+                "Execution",
+                "Persistence",
+                "Privilege Escalation",
+                "Command and Control",
+                "Actions on Objectives"
+            ] %}
+            {% set kc_map = {} %}
+            {% if kill_chain_summary is defined and kill_chain_summary %}
+                {% for kc in kill_chain_summary %}
+                  {% set _ = kc_map.update({kc.stage: kc.count}) %}
+                {% endfor %}
+            {% endif %}
+            
+            {% for st in stages_order %}
+              {% set count = kc_map.get(st) %}
+              
+              {% set is_active = count and is_alertable %}
+              {% set is_muted = count and not is_alertable %}
+              
+              <div class="killchain-step {% if is_active %}active{% endif %} {% if is_muted %}muted{% endif %}" {% if count %}onclick="filterByKillChain('{{ st }}')" style="cursor:pointer;"{% endif %}>
+                <div style="font-weight:700; font-size:12px; color:#e2e8f0; text-transform:uppercase; letter-spacing:0.5px;">{{ st }}</div>
+                {% if count %}
+                    <div class="count">{{ count }}</div>
+                    <div style="font-size:10px; color:#94a3b8; text-transform:uppercase;">detections</div>
+                {% elif st == 'Execution' and not is_alertable %}
+                    <div style="font-size:10px; color:#22d3ee; margin-top:12px; font-weight:600;">Execution Only</div>
+                {% elif st == highest_kill_chain %}
+                      <span style="font-size:10px; color:#60a5fa;">(Current Stage)</span>
+                {% else %}
+                    <div style="font-size:24px; color:#334155; margin:10px 0;">-</div>
+                {% endif %}
+              </div>
+            {% endfor %}
+        </div>
+    </div>
+    <div class="card-panel animate-entry delay-5">
+        <h2>Correlation Hunts & Campaigns</h2>
+
+        <h3 style="font-size:13px; color:#60a5fa; margin-bottom:12px; text-transform:uppercase;">Active Campaigns</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Campaign ID</th>
+                    <th>Base Image</th>
+                    <th>Highest Stage</th>
+                    <th>Max Confidence</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if correlation_campaigns %}
+                    {% for c in correlation_campaigns %}
+                    <tr>
+                      <td class="meta">{{ c.corr_id }}</td>
+                      <td>{{ c.base_image }}</td>
+                      <td>{{ c.highest_kill_chain }}</td>
+                      <td>
+                        <span class="tag">{{ c.max_confidence }}</span>
+                      </td>
+                      <td>{{ c.status }}</td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr><td colspan="5" style="color:#64748b; font-style:italic;">No active campaigns detected.</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+
+        {% if correlation_hunts %}
+          <div style="background:rgba(255,255,255,0.03); padding:16px; border-radius:6px; margin-top:16px;">
+              <div style="font-size:11px; font-weight:600; color:#94a3b8; text-transform:uppercase; margin-bottom:8px;">Hunt Results</div>
+              <ul style="font-size:12px; color:#cbd5e1; margin:0; padding-left:16px;">
+                {% for hunt in correlation_hunts %}
+                  <li style="margin-bottom:4px;">
+                    {% if hunt.status == 'matched' %}<span style="color:#34d399">✔</span>{% elif hunt.status == 'partial' %}<span style="color:#fbbf24">✖</span>{% else %}<span style="color:#64748b">✖</span>{% endif %}
+                    <strong style="color:#e2e8f0">{{ hunt.label }}</strong> – {{ hunt.detail }}
+                  </li>
+                {% endfor %}
+              </ul>
+          </div>
+        {% endif %}
+
+        {% if correlations_detail and correlations_detail|length > 0 %}
+            <div class="collapsible-header expanded" onclick="toggleCollapsible(this)">
+                {{ correlations_detail | length }} multi-stage correlation(s) detected
+            </div>
+            
+            <div class="collapsible-content expanded">
+                <table style="font-size:12px;">
+                    <thead>
+                        <tr>
+                            <th>ID</th><th>Time Window</th><th>Image</th><th>Kill Chain</th><th>Events</th><th>Confidence Impact</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for c in correlations_detail %}
+                        <tr>
+                            <td class="meta">{{ c.corr_id }}</td>
+                            <td class="meta">{{ c.start_time }} → {{ c.end_time }}</td>
+                            <td>{{ c.base_image }}</td>
+                            <td>{{ c.kill_chain_stage }}</td>
+                            <td class="meta">{{ c.event_ids }}</td>
+                            <td><span style="color:#60a5fa; font-weight:bold;">+20</span> <span style="font-size:10px; color:#64748b;">(multi-stage)</span></td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% endif %}
+    </div>
+
+    <div class="card-panel animate-entry delay-5">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <h2>Raw Evidence Forensic Detail</h2>
+          <div>
+            <a href="{{ url_for('raw_events') }}" class="btn-expand">VIEW RAW EVENTS</a>
+          </div>
+      </div>
+
+        {% if not is_alertable %}
+        <div style="background:rgba(16, 185, 129, 0.1); border:1px solid rgba(16, 185, 129, 0.2); padding:12px; border-radius:6px; margin-bottom:24px;">
+            <h4 style="margin:0 0 4px 0; font-size:13px; color:#6ee7b7;">Baseline Execution Context</h4>
+            <div style="font-size:11px; color:#d1fae5;">Context Only – Not Alerting</div>
+        </div>
+        <div style="text-align:center; margin-bottom:20px; font-size:12px; color:#94a3b8; font-style:italic;">
+            Shown for analyst context only. These entries did not trigger attack escalation.
+        </div>
+        {% endif %}
+
+    <table class="baseline-table">
+      <thead>
+        <tr>
+          <th class="col-image">Image</th>
+          <th class="col-type">Behavior Type</th>
+          <th class="col-exec">Executions</th>
+          <th class="col-window">Time Window</th>
+          <th class="col-status">Baseline Status</th>
+          <th class="col-why">Why Non-Alerting</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% if top_dangerous_bursts and top_dangerous_bursts|length > 0 %}
+      {% for b in top_dangerous_bursts %}
+        <tr>
+            <td class="col-image">
+                {{ b.image }}
+            </td>
+
+            <td class="col-type">
+                <div style="color:#94a3b8;">Baseline Execution</div>
+                {% if b.parent_image %}
+                <div style="font-size:10px; color:#64748b; margin-top:2px;">
+                    Parent: {{ b.parent_image }}
+                </div>
+                {% endif %}
+            </td>
+
+            <td class="col-exec meta">
+                {{ b.exec_count }} executions
+                <div style="font-size:10px; color:#60a5fa; margin-top:2px;">
+                 {{ b.exec_rate_per_min }} /min
+                </div>
+            </td>
+
+            <td class="col-window meta" style="font-size:11px;">
+                {{ b.start_label }} – {{ b.end_label }} UTC
+                <div style="font-size:10px; color:#64748b;">
+                ({{ b.duration_label }})
+                </div>
+            </td>
+
+            <td class="col-status" style="font-size:11px;">
+                {% if b.baseline_state == "Stable" %}
+                <span style="color:#22c55e;">Stable</span>
+                {% elif b.baseline_state == "Expected Burst" %}
+                <span style="color:#eab308;">Expected Burst</span>
+                {% else %}
+                <span style="color:#f97316;">Unusual but Learned</span>
+                {% endif %}
+                <div style="margin-top:4px; font-size:10px; color:#94a3b8;">
+                    Deviation: {{ b.baseline_deviation }}
+                </div>
+            </td>
+
+            <td class="col-why" style="font-size:11px; color:#94a3b8;">
+                {% for reason in b.why_non_alerting %}
+                    <div style="margin-bottom:2px;">• {{ reason }}</div>
+                {% endfor %}
+            </td>
+        </tr>
+      {% endfor %}
+    {% else %}
+      <tr>
+        <td colspan="6" style="color:#64748b; font-style:italic; padding:20px;">
+          No high-risk behavioral patterns detected. Showing most active baseline execution entities for context.
+        </td>
+      </tr>
+    {% endif %}
+
+      </tbody>
+    </table>
+    </div>
+
+    <div class="card-panel animate-entry delay-5">
+      <div class="collapsible-header" onclick="toggleCollapsible(this)">
+        Raw Timeline (First 20 Events)
+      </div>
+      <div class="collapsible-content">
+        <table>
+            <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>Image</th>
+                    <th>Event</th>
+                    <th>Score</th>
+                    <th>Stage</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% if timeline is defined and timeline %}
+                {% for ev in timeline[:20] %}
+                  <tr>
+                    <td class="meta">{{ ev.start_time }}</td>
+                    <td>{{ ev.image }}</td>
+                    <td class="meta">{{ ev.event_ids | join(',') }}</td>
+                    <td>{{ ev.risk_score }}</td>
+                    <td>{{ ev.kill_chain_stage }}</td>
+                  </tr>
+                {% endfor %}
+            {% else %}
+                  <tr><td colspan="5" style="color:#64748b; font-style:italic;">No raw timeline events available.</td></tr>
+            {% endif %}
+            </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card-panel animate-entry delay-5">
+      <h2>Attack Timeline</h2>
+
+      <div style="font-size:11px; color:#94a3b8; margin-bottom:16px;">
+        Timeline entries reflect aggregated execution bursts grouped by image.
+        Time variance inside bursts is intentionally collapsed.
+      </div>
+
+    {% if burst_aggregates %}
+    <table>
+      <thead>
+        <tr>
+          <th>Image</th>
+          <th>Kill Chain</th>
+          <th>Executions</th>
+          <th>Peak Confidence</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for b in burst_aggregates %}
+          {% set rowid = "burst_" ~ loop.index %}
+          <tr onclick="toggleCollapsible(document.getElementById('{{ rowid }}'))" style="cursor:pointer; border-bottom:none;">
+            <td style="font-weight:600; color:#e2e8f0;">
+              {{ b.image }}
+              </td>
+            <td>{{ b.kill_chain_stage }}</td>
+            <td class="meta">{{ b.total_count }}</td>
+            <td>
+              <span class="tag">{{ b.peak_score }}</span>
+            </td>
+            <td class="meta" style="text-align:right;">
+              <a href="#" onclick="return false;" style="font-size:10px; color:#60a5fa; cursor:pointer; margin-top:4px; text-decoration:none; display:block;">View Details</a>
+            </td>
+          </tr>
+          <tr>
+            <td colspan="5" style="padding:0; border:none;">
+              <div id="{{ rowid }}" class="collapsible-content" style="background:rgba(15, 23, 42, 0.4); margin:0; border-top:1px dashed var(--border-color);">
+                <div style="padding:16px;">
+                  
+                  {% if b.confidence_reasons %}
+                      <div style="margin-bottom:8px;">
+                          <strong style="color:#cbd5e1; font-size:11px;">Confidence Drivers:</strong>
+                          <ul style="margin:4px 0 12px 0; padding-left:16px; color:#94a3b8; font-size:11px;">
+                            {% for r in b.confidence_reasons %}
+                              <li>{{ r }}</li>
+                            {% endfor %}
+                          </ul>
+                      </div>
+                  {% endif %}
+
+                  {% if b.suppression_reason %}
+                      <div style="margin-bottom:12px; font-size:11px; color:#f59e0b;">
+                          <strong>Suppressed:</strong> {{ b.suppression_reason }}
+                      </div>
+                  {% endif %}
+
+                  <div style="font-size:11px; color:#94a3b8; margin-bottom:12px; font-weight:700; text-transform:uppercase;">Burst Composition</div>
+                  {% if b.timeline_indices and timeline %}
+                      {% for idx in b.timeline_indices %}
+                        {% if idx < timeline|length %}
+                            {% set ev = timeline[idx] %}
+                            {% if ev is mapping %}
+                              <div style="margin-bottom:8px; padding-left:12px; border-left:2px solid #3b82f6;">
+                                <div style="font-size:12px; color:#f1f5f9;">
+                                  <span style="color:#60a5fa;">●</span> 
+                                  Burst {{ loop.index }} – {{ ev.kill_chain_stage or 'Execution' }} – {{ ev.image or 'unknown process' }}
+                                  <span class="tag" style="margin-left:8px;">
+                                    {% if ev._pre_suppressed %}
+                                        Baseline noise
+                                    {% elif ev.kill_chain_stage == 'Execution' and ev.risk_score < 40 %}
+                                        Execution-only context
+                                    {% elif ev.risk_score >= 70 %}
+                                        High Threat Likelihood
+                                    {% elif ev.risk_score >= 40 %}
+                                        Suspicious
+                                    {% else %}
+                                        Observed
+                                    {% endif %}
+                                  </span>
+                                </div>
+                                <div class="meta" style="margin-top:6px;">
+                                  {{ ev.start_time }} · {{ ev.count }} executions ·
+                                  Confidence {{ ev.risk_score }}/{{ ev.stage_cap }}
+                                </div>
+                                <div class="meta">
+                                  IDs: 
+                                  {% if ev.event_ids %}
+                                    <span style="color:#e2e8f0">{{ ev.event_ids|join(", ") }}</span>
+                                  {% else %}
+                                    Unknown
+                                  {% endif %}
+                                </div>
+                              </div>
+                            {% endif %}
+                        {% endif %}
+                      {% endfor %}
+                  {% else %}
+                      <div style="font-size:11px; color:#64748b;">No detailed timeline events available.</div>
+                  {% endif %}
+                </div>
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="card-panel" style="text-align:center; color:#64748b;">
+      No attack timeline available.
+    </div>
+    {% endif %}
+    </div>
+
+    <div class="animate-entry delay-5" style="margin-top: 32px;">
+        <h2>MITRE Techniques</h2>
+        <p style="background:rgba(245, 158, 11, 0.1); color:#fbbf24; padding:10px; font-size:12px; border-radius:4px; margin-bottom:16px; border:1px solid rgba(245, 158, 11, 0.2); display:inline-block;">
+            ⚠ Techniques shown are heuristic mappings, not confirmed adversary attribution.
+        </p>
+
+        <table>
+            <thead>
+                <tr><th>Tactic</th><th>Technique</th><th>Detections</th></tr>
+            </thead>
+            <tbody>
+            {% for row in mitre_summary %}
+                <tr style="cursor:pointer;" title="Click filters dashboard by this technique" onclick="goToMitre('{{ row.mitre_tactic | urlencode }}', '{{ row.mitre_id | urlencode }}')">
+                    <td>{{ row.mitre_tactic }}</td>
+                    <td style="color:#60a5fa">{{ row.mitre_id }}</td>
+                    <td class="meta">{{ row.count }}</td>
+                </tr>
+            {% else %}
+                <tr><td colspan="3" style="color:#64748b; font-style:italic;">No MITRE-mapped detections.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="animate-entry delay-5" style="margin-top: 32px;">
+        <h2>Event Volume per Hour</h2>
+        <div style="background:var(--bg-card); padding:16px; border-radius:8px; border:1px solid var(--border-color);">
+            <canvas id="eventsPerHourChart" height="80"></canvas>
+        </div>
+    </div>
+
+    <div class="animate-entry delay-5" style="margin-top: 32px;">
+        <h2>Top Event Types</h2>
+        <table>
+            <thead>
+                <tr><th>Event ID</th><th>Description</th><th>Count</th></tr>
+            </thead>
+            <tbody>
+            {% set events_list = top_events if top_events is defined and top_events else [] %}
+            
+            {% for row in events_list %}
+                <tr>
+                    <td class="meta">{{ row.event_id }}</td>
+                    <td>{{ row.description }}</td>
+                    <td class="meta">{{ row.count }}</td>
+                </tr>
+            {% else %}
+                <tr><td class="meta">1</td><td>Process Creation (Demo)</td><td class="meta">120</td></tr>
+                <tr><td class="meta">3</td><td>Network Connection (Demo)</td><td class="meta">85</td></tr>
+                <tr><td class="meta">11</td><td>File Create (Demo)</td><td class="meta">45</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="animate-entry delay-5" style="margin-top: 32px">
+      <h2>LOLBins Summary</h2>
+      {% if lolbins_summary is defined and lolbins_summary %}
+      <table>
+        <thead>
+          <tr>
+            <th>Image</th>
+            <th>Executions</th>
+            <th>Unique CmdLines</th>
+            <th>Abnormal Parents</th>
+            <th>Verdict</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for row in lolbins_summary %}
+          <tr>
+            <td style="color:#e2e8f0">{{ row.image }}</td>
+            <td class="meta">{{ row.executions }}</td>
+            <td class="meta">{{ row.unique_command_lines }}</td>
+            <td class="meta">{{ row.abnormal_parents }}</td>
+            <td>
+                <span class="tag">{{ row.verdict }}</span>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p style="color:#64748b;font-size:12px; font-style:italic;">No active LOLBin summary available.</p>
+      {% endif %}
+    </div>
+
+    <div class="animate-entry delay-5" style="margin-top: 32px; margin-bottom: 60px;">
+        <h2>Recent Events</h2>
+        <table style="font-size:12px;">
+            <thead>
+                <tr><th>Time (UTC)</th><th>Event ID</th><th>Image</th><th>User</th><th>Source IP</th><th>Dest IP</th></tr>
+            </thead>
+            <tbody>
+            {% if recent %}
+                {% for ev in recent %}
+                    <tr>
+                        <td class="meta">{{ ev.utc_time }}</td>
+                        <td class="meta">{{ ev.event_id }}</td>
+                        <td>
+                            {% if ev.image %}
+                                <a href="{{ url_for('process_view', image=ev.image) }}" style="color:#60a5fa; text-decoration:none; border-bottom:1px dashed #60a5fa;">{{ ev.image }}</a>
+                            {% else %}
+                                <span style="color:#64748b;">(no image)</span>
+                            {% endif %}
+                        </td>
+                        <td class="meta">{{ ev.user }}</td>
+                        <td class="meta">{{ ev.source_ip }}</td>
+                        <td class="meta">{{ ev.destination_ip }}</td>
+                    </tr>
+                {% endfor %}
+            {% else %}
+                <tr><td colspan="6" style="color:#64748b;">No recent events available.</td></tr>
+            {% endif %}
+            </tbody>
+        </table>
+    </div>
+
+</div>
+
+<script>
+    // Collapsible Logic
+    function toggleCollapsible(element) {
+        // If element is the header, find sibling content. 
+        // If element is the collapsible content itself (triggered via ID), just toggle.
+        var content;
+        if (element.classList.contains('collapsible-content')) {
+            content = element;
+        } else {
+            content = element.nextElementSibling || element.querySelector('.collapsible-content');
+        }
+        
+        if (content && content.classList.contains('collapsible-content')) {
+            content.classList.toggle('expanded');
+        }
+    }
+    
+    function filterByKillChain(stage) {
+        const url = new URL(window.location);
+        url.searchParams.set('kill_chain_stage', stage);
+        window.location = url;
+    }
+    
+    // New function for MITRE interactivity
+    function goToMitre(tactic, id) {
+        // Implementation depends on your routing, this is a placeholder behavior
+        const url = new URL(window.location);
+        url.searchParams.set('mitre_id', id);
+        window.location = url;
+    }
+
+    // Chart.js Logic
+    document.addEventListener('DOMContentLoaded', function() {
+        
+        // --- 1. Severity Chart (Doughnut) ---
+        const ctxSev = document.getElementById('severityChart');
+        if(ctxSev) {
+            // ✅ FIX SET 8: SAFE JS DATA PARSING
+            let severityData = {{ events_by_severity | default(severity_counts) | tojson }};
+            
+            // Robust Case-Insensitive Lookup
+            const dataValues = [
+                Number(severityData.High || severityData.high || 0),
+                Number(severityData.Medium || severityData.medium || 0),
+                Number(severityData.Low || severityData.low || 0)
+            ];
+
+            new Chart(ctxSev, {
+                type: 'doughnut',
+                data: {
+                    labels: ['High', 'Medium', 'Low'],
+                    datasets: [{
+                        data: dataValues,
+                        backgroundColor: ['#f87171', '#fbbf24', '#34d399'],
+                        borderWidth: 0,
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    cutout: '75%'
+                }
+            });
+        }
+
+        // --- 2. Events Per Hour Chart (Line) ---
+        const eph = {{ events_per_hour | tojson | safe }};
+        const labels = eph.map(p => p.hour);
+        const data   = eph.map(p => p.count);
+
+        const ctx = document.getElementById('eventsPerHourChart').getContext('2d');
+
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+            labels: labels,
+            datasets: [{
+                label: 'Events per hour',
+                data: data,
+                borderColor: '#38bdf8',
+                backgroundColor: 'rgba(56,189,248,0.15)',
+                borderWidth: 2,
+                tension: 0.25,
+                fill: true,
+                pointRadius: 3,
+            }]
+            },
+            options: {
+            plugins: {
+                legend: { display: true }
+            },
+            scales: {
+                y: {
+                beginAtZero: true,
+                title: { display: true, text: 'Events' }
+                }
+            }
+            }
+        });
+    });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ title }}</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; margin: 1.5rem; background-color: #f7f7f7; }
+        h1, h2 { color: #333333; }
+        a { color: #1976d2; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        table { border-collapse: collapse; width: 100%; margin-bottom: 2rem; background-color: #ffffff; }
+        th, td { border: 1px solid #dddddd; padding: 0.5rem 0.75rem; text-align: left; font-size: 0.9rem; }
+        th { background-color: #f0f0f0; }
+        tr:nth-child(even) { background-color: #fafafa; }
+        
+        /* Context Assessment Box */
+        .context-verdict {
+            background: #fff;
+            border-left: 4px solid #1976d2;
+            padding: 12px;
+            margin: 16px 0;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        .context-verdict strong {
+            color: #1976d2;
+        }
+        
+        /* Table subsection labels */
+        .table-context {
+            font-size: 11px;
+            color: #777;
+            margin: -12px 0 12px 0;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <h1>{{ title }}</h1>
+    <p><a href="{{ url_for('dashboard') }}">&larr; Back to dashboard</a></p>
+
+
+
+    <!-- ===== CONTEXT VERDICT BOX (REQUIRED) ===== -->
+    <div class="context-verdict">
+        <strong>Context Assessment:</strong><br>
+        PowerShell execution was observed {% if timeline %}{{ timeline | length }} time(s){% else %}in this dataset{% endif %}, 
+        primarily launched by <em>{{ parents[0].parent_image if parents else 'unknown parent' }}</em>.
+        No evidence of payload delivery, persistence mechanisms, or command-and-control activity was observed in this telemetry.
+        <br><br>
+        <strong>Interpretation:</strong> Likely administrative or automation-driven activity, 
+        pending correlation with network or persistence indicators.
+    </div>
+
+    <!-- Supporting Evidence Label -->
+    <p style="font-size:12px; color:#666; font-style:italic; margin:20px 0 16px 0;">
+        The following sections provide supporting evidence for the assessment above.
+    </p>
+
+    <!-- ===== TIMELINE ===== -->
+    <h2>Execution Timeline (Repeated PowerShell Activity)</h2>
+    <p class="table-context">
+        Shows when PowerShell ran, which event types were logged, and process identifiers.
+    </p>
+    <table>
+        <thead>
+        <tr>
+            <th>Time (UTC)</th>
+            <th>Event ID</th>
+            <th>Description</th>
+            <th>Image</th>
+            <th>Computer</th>
+            <th>Process ID</th>
+            <th>Parent image</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% if timeline %}
+            {% for ev in timeline %}
+            <tr>
+                <td>{{ ev.utc_time }}</td>
+                <td>{{ ev.event_id }}</td>
+                <td>{{ ev.description }}</td>
+                <td>{{ ev.image }}</td>
+                <td>{{ ev.computer }}</td>
+                <td>{{ ev.process_id }}</td>
+                <td>{{ ev.parent_image }}</td>
+            </tr>
+            {% endfor %}
+        {% else %}
+        <tr><td colspan="7" style="color:#999;">No timeline events available.</td></tr>
+        {% endif %}
+        </tbody>
+    </table>
+
+    <!-- ===== PARENT PROCESSES ===== -->
+    <h2>Who launches PowerShell?</h2>
+    <p class="table-context">
+        Indicates whether PowerShell was user-initiated, service-driven, or automated.
+    </p>
+    <table>
+        <thead>
+        <tr>
+            <th>Parent image</th>
+            <th>Count</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% if parents %}
+            {% for row in parents %}
+            <tr>
+                <td>{{ row.parent_image }}</td>
+                <td>{{ row.count }}</td>
+            </tr>
+            {% endfor %}
+        {% else %}
+        <tr><td colspan="2" style="color:#999;">No parent process data available.</td></tr>
+        {% endif %}
+        </tbody>
+    </table>
+
+    <!-- ===== CHILD PROCESSES ===== -->
+    <h2>What does PowerShell spawn?</h2>
+    <p class="table-context">
+        Child processes may indicate follow-on execution, scripting behavior, or system administration tasks.
+    </p>
+    <table>
+        <thead>
+        <tr>
+            <th>Child image</th>
+            <th>Count</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% if children %}
+            {% for row in children %}
+            <tr>
+                <td>{{ row.image }}</td>
+                <td>{{ row.count }}</td>
+            </tr>
+            {% endfor %}
+        {% else %}
+        <tr><td colspan="2" style="color:#999;">No child process data available.</td></tr>
+        {% endif %}
+        </tbody>
+    </table>
+
+    <!-- ===== DETECTIONS ===== -->
+    <h2>Detection hits involving PowerShell</h2>
+    <p class="table-context">
+        Rules that fired during this process execution window.
+    </p>
+    <table>
+        <thead>
+        <tr>
+            <th>Time (UTC)</th>
+            <th>Rule ID</th>
+            <th>Rule name</th>
+            <th>MITRE ID</th>
+            <th>Tactic</th>
+            <th>Severity</th>
+            <th>Context</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% if detections %}
+            {% for d in detections %}
+            <tr>
+                <td>{{ d.utc_time }}</td>
+                <td>{{ d.rule_id }}</td>
+                <td>{{ d.rule_name }}</td>
+                <td>{{ d.mitre_id }}</td>
+                <td>{{ d.mitre_tactic }}</td>
+                <td>{{ d.severity }}</td>
+                <td>{{ d.context }}</td>
+            </tr>
+            {% endfor %}
+        {% else %}
+        <tr><td colspan="7" style="color:#999;">No detection hits for this process.</td></tr>
+        {% endif %}
+        </tbody>
+    </table>
+
+    <p style="font-size:11px; color:#999; margin-top:40px; padding-top:20px; border-top:1px solid #ddd;">
+        Process detail view for <strong>{{ title }}</strong>. Shows timeline, parent/child relationships, and detection matches.
+    </p>
+</body>
+</html>

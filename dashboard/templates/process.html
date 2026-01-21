@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Process view - {{ image }}</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; margin: 1.5rem; background-color: #f7f7f7; }
+        h1, h2 { color: #333333; }
+        a { color: #1976d2; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        
+        /* Context Assessment Box */
+        .context-assessment {
+            background: #fff;
+            border-left: 4px solid #1976d2;
+            padding: 12px;
+            margin: 16px 0;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        .context-assessment strong {
+            color: #1976d2;
+        }
+        
+        /* Section framing */
+        .section-frame {
+            font-size: 11px;
+            color: #666;
+            font-style: italic;
+            margin-bottom: 8px;
+        }
+        
+        /* Table styling */
+        table { border-collapse: collapse; width: 100%; margin-bottom: 2rem; background-color: #ffffff; }
+        th, td { border: 1px solid #dddddd; padding: 0.5rem 0.75rem; text-align: left; font-size: 0.9rem; }
+        th { background-color: #f0f0f0; }
+        tr:nth-child(even) { background-color: #fafafa; }
+    </style>
+</head>
+<body>
+    <!-- ===== CALCULATE COUNTS ONCE (DRY) ===== -->
+    {% set total_events = total or 0 %}
+    {% set parent_count = parent_summary|length if parent_summary else 0 %}
+    {% set child_count = child_summary|length if child_summary else 0 %}
+
+    <h1>Process details: {{ image }}</h1>
+    <p><a href="{{ url_for('dashboard') }}">&larr; Back to dashboard</a></p>
+
+    <!-- ===== CONTEXT ASSESSMENT BOX ===== -->
+    <div class="context-assessment">
+        <strong>Process Context Assessment:</strong><br>
+        The process <strong>{{ image }}</strong> was observed {{ total_events }} time(s) in the dataset.
+        {% if parent_count > 0 %}
+            It was primarily launched by <em>{{ parent_summary[0].parent_image }}</em>.
+        {% endif %}
+        {% if child_count > 0 %}
+            The process spawned {{ child_count }} distinct child process(es).
+        {% endif %}
+        <br><br>
+        <strong>Interpretation:</strong>
+        {% if total_events < 3 %}
+            Limited execution observed. Low confidence for malicious intent without corroborating indicators.
+        {% elif total_events < 10 %}
+            Repeated execution observed. Requires correlation with persistence or network activity.
+        {% else %}
+            High-frequency execution observed. Behavior warrants further investigation depending on execution context.
+        {% endif %}
+    </div>
+
+    <!-- ===== SUMMARY ===== -->
+    <h2>Summary</h2>
+    <p>Total events for this image: {{ total_events }}</p>
+
+    <!-- ===== TOP PARENT IMAGES ===== -->
+    <h2>Top parent images</h2>
+    <p class="section-frame">
+        Indicates how this process is typically launched in the environment.
+    </p>
+    <table>
+        <thead>
+        <tr>
+            <th>Parent image</th>
+            <th>Count</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% if parent_summary %}
+            {% for row in parent_summary %}
+            <tr>
+                <td>{{ row.parent_image }}</td>
+                <td>{{ row.count }}</td>
+            </tr>
+            {% endfor %}
+        {% else %}
+        <tr><td colspan="2" style="color:#999;">No parent process data available.</td></tr>
+        {% endif %}
+        </tbody>
+    </table>
+
+    <!-- ===== TOP CHILD IMAGES ===== -->
+    <h2>Top child images spawned</h2>
+    <p class="section-frame">
+        Child processes may indicate follow-on execution, scripting behavior, or system administration tasks.
+    </p>
+    <table>
+        <thead>
+        <tr>
+            <th>Child image</th>
+            <th>Count</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% if child_summary %}
+            {% for row in child_summary %}
+            <tr>
+                <td>{{ row.image }}</td>
+                <td>{{ row.count }}</td>
+            </tr>
+            {% endfor %}
+        {% else %}
+        <tr><td colspan="2" style="color:#999;">No child process data available.</td></tr>
+        {% endif %}
+        </tbody>
+    </table>
+
+    <!-- ===== EVENT TIMELINE ===== -->
+    <h2>Event timeline for this process</h2>
+    <p class="section-frame">
+        Chronological sequence of events associated with this process execution.
+    </p>
+    <table>
+        <thead>
+        <tr>
+            <th>Time (UTC)</th>
+            <th>Event ID</th>
+            <th>Description</th>
+            <th>Computer</th>
+            <th>Process ID</th>
+            <th>Parent Process ID</th>
+            <th>Parent image</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% if events %}
+            {% for ev in events %}
+            <tr>
+                <td>{{ ev.utc_time }}</td>
+                <td>{{ ev.event_id }}</td>
+                <td>{{ ev.description }}</td>
+                <td>{{ ev.computer }}</td>
+                <td>{{ ev.process_id }}</td>
+                <td>{{ ev.parent_process_id }}</td>
+                <td>{{ ev.parent_image }}</td>
+            </tr>
+            {% endfor %}
+        {% else %}
+        <tr><td colspan="7" style="color:#999;">No events available for this process.</td></tr>
+        {% endif %}
+        </tbody>
+    </table>
+</body>
+</html>

@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>CADET – Raw Events</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; background: #f4f4f4; }
+    header { background: #1976d2; color: #fff; padding: 12px 20px; }
+    header h1 { margin: 0; font-size: 20px; }
+    header p { margin: 2px 0 0 0; font-size: 11px; color: #e3f2fd; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 0 16px 24px; }
+    table { width: 100%; border-collapse: collapse; background: #fff; margin-top: 12px; font-size: 12px; }
+    th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; }
+    th { background: #f0f0f0; font-weight: bold; }
+    td.meta { font-size: 11px; color: #777; }
+    .pager a { margin-right: 8px; font-size: 12px; }
+    .top-buttons a {
+      display: inline-block;
+      padding: 6px 10px;
+      font-size: 12px;
+      border-radius: 3px;
+      border: 1px solid #1976d2;
+      background: #e3f2fd;
+      color: #1976d2;
+      text-decoration: none;
+      margin-right: 8px;
+    }
+  </style>
+</head>
+<body>
+<header>
+  <h1>CADET – Raw Events</h1>
+  <p>Paginated raw Sysmon events. No scoring, no kill chain – just proof.</p>
+</header>
+<div class="container">
+  <div class="top-buttons" style="margin: 12px 0;">
+    <a href="{{ url_for('dashboard', run_id=analysis_run_id) }}">Back to Summary</a>
+  </div>
+
+  {% if events %}
+  <table>
+    <thead>
+      <tr>
+        <th>Time</th>
+        <th>Event ID</th>
+        <th>Image</th>
+        <th>User</th>
+        <th>Source IP</th>
+        <th>Dest IP</th>
+        <th>Command Line</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for e in events %}
+      <tr>
+        <td class="meta">{{ e.event_time }}</td>
+        <td>{{ e.event_id }}</td>
+        <td>{{ e.image }}</td>
+        <td class="meta">{{ e.user }}</td>
+        <td class="meta">{{ e.src_ip }}</td>
+        <td class="meta">{{ e.dst_ip }}</td>
+        <td class="meta">{{ e.command_line }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <div class="pager" style="margin-top: 8px;">
+    {% if page > 1 %}
+    <a href="{{ url_for('raw_events', page=page-1) }}">&laquo; Previous</a>
+    {% endif %}
+    {% if has_next %}
+    <a href="{{ url_for('raw_events', page=page+1) }}">Next &raquo;</a>
+    {% endif %}
+  </div>
+  {% else %}
+  <p>No events available.</p>
+  {% endif %}
+</div>
+</body>
+</html>

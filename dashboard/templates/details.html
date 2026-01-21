@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>CADET – Investigation View</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; background: #f4f4f4; }
+    header { background: #1976d2; color: #fff; padding: 12px 20px; }
+    header h1 { margin: 0; font-size: 20px; }
+    header p { margin: 2px 0 0 0; font-size: 11px; color: #e3f2fd; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 0 16px 32px; }
+    h2 { font-size: 16px; margin: 20px 0 10px; color: #1976d2; }
+    table { width: 100%; border-collapse: collapse; background: #fff; margin: 10px 0; font-size: 12px; }
+    th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; }
+    th { background: #f0f0f0; font-weight: bold; }
+    td.meta { font-size: 11px; color: #777; }
+    .section { margin-top: 18px; }
+    .top-buttons a {
+      display: inline-block;
+      padding: 6px 10px;
+      font-size: 12px;
+      border-radius: 3px;
+      border: 1px solid #1976d2;
+      background: #e3f2fd;
+      color: #1976d2;
+      text-decoration: none;
+      margin-right: 8px;
+    }
+    .text-muted { color: #777 !important; }
+    .bg-light { background-color: #f8f9fa !important; }
+    .tag {
+      display: inline-block;
+      padding: 1px 4px;
+      margin: 0 2px;
+      border-radius: 3px;
+      background: #e0e0e0;
+      font-size: 10px;
+      cursor: help;
+    }
+    .tag-critical {
+      background: #ffebee;
+      color: #c62828;
+    }
+  </style>
+</head>
+<body>
+<header>
+  <h1>CADET – Investigation View</h1>
+  <p>Full attack timeline, detections, and correlation evidence.</p>
+</header>
+
+<div class="container">
+  <div class="top-buttons" style="margin: 12px 0;">
+    <a href="{{ url_for('dashboard', run_id=analysis_run_id) }}">Back to Summary</a>
+  </div>
+
+  {% if incident %}
+  <section class="section">
+    <h2>Incident Overview</h2>
+    <p>
+      <strong>ID:</strong> {{ incident.incident_id }} |
+      <strong>Status:</strong> {{ incident.status or "Triage" }} |
+      <strong>Severity:</strong> {{ incident.severity or "Medium" }} |
+      <strong>Confidence:</strong> {{ incident.confidence or 0 }}/100 |
+      <strong>Last Updated:</strong> {{ incident.updated_at or "N/A" }}
+    </p>
+  </section>
+  {% endif %}
+
+  <section class="section">
+    <h2>Investigation Timeline</h2>
+    <p style="margin-top:0; font-size:12px; color:#777; margin-bottom: 12px;">
+      Attack candidates and baseline deviations contributing to current assessment.
+    </p>
+
+    {% if timeline %}
+    <table>
+      <thead>
+        <tr>
+          <th>Start</th>
+          <th>End</th>
+          <th>Image</th>
+          <th>User</th>
+          <th>Kill Chain</th>
+          <th>Exec Count</th>
+          <th>Risk</th>
+          <th>Deviation</th>
+          <th>Evidence</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ev in timeline %}
+        <tr
+          class="{% if ev.classification == 'background_activity' and 'SYSTEM' in (ev.user or '') %}text-muted bg-light{% endif %}"
+        >
+          <td class="meta">{{ ev.start_time or ev.starttime }}</td>
+          <td class="meta">{{ ev.end_time or ev.endtime }}</td>
+          <td>
+            {% if ev.burst_type in ["attack", "baseline_deviation"] %}
+              <a href="{{ url_for('burst_view', burst_id=ev.burst_id) }}">
+                {{ ev.image or 'unknown process' }}
+              </a>
+            {% else %}
+              {{ ev.image or 'unknown process' }}
+            {% endif %}
+            <br>
+            <span class="meta">{{ ev.burst_id or 'N/A' }}</span>
+          </td>
+          <td>{{ ev.user or 'Unknown' }}</td>
+          <td>{{ ev.kill_chain_stage or ev.stage or ev.killchainstage or "Unclassified" }}</td>
+          <td>{{ ev.execution_count or ev.count or 0 }}</td>
+          <td>{{ ev.risk_score or ev.riskscore or 0 }}/100</td>
+
+          <td>
+            {% if ev.deviation_score is not none %}
+              {{ "%.2f"|format(ev.deviation_score) }}
+              <br>
+              <span style="font-size:10px; color:#666;">
+              {% if ev.deviation_score < 0.3 %}
+                Low
+              {% elif ev.deviation_score < 0.6 %}
+                Moderate
+              {% else %}
+                High
+              {% endif %}
+              </span>
+            {% else %}
+              N/A
+            {% endif %}
+          </td>
+
+          <td style="font-size:11px;">
+            {% if ev.has_exec %}
+              <span class="tag" title="Process Execution detected">Exec</span>
+            {% endif %}
+            {% if ev.has_net %}
+              <span class="tag" title="Network activity observed">Net</span>
+            {% endif %}
+            {% if ev.has_persistence %}
+              <span class="tag" title="Persistence mechanism installed">Persist</span>
+            {% endif %}
+            {% if ev.destination_ip %}
+              <span class="tag tag-critical" title="Connection to public/non-local IP">External IP</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p>No timeline entries available.</p>
+    {% endif %}
+  </section>
+
+  <section class="section">
+    <h2>Detections (Full)</h2>
+    {% if detections %}
+    <table>
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Rule</th>
+          <th>Image</th>
+          <th>MITRE</th>
+          <th>Severity</th>
+          <th>Confidence</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in detections %}
+        <tr>
+          <td class="meta">{{ d.utc_time or d.utctime }}</td>
+          <td>{{ d.rule_name or d.rulename or d.rule_id or d.ruleid }}</td>
+          <td>{{ d.image }}</td>
+          <td>{{ d.mitre_id or d.mitreid or "-" }}</td>
+          <td>{{ d.severity or "-" }}</td>
+          <td>{{ d.confidence_score or d.confidenceimpact or 0 }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p>No detections in current window.</p>
+    {% endif %}
+  </section>
+
+  <section class="section">
+    <h2>Multi-stage Correlations</h2>
+    {% if correlations %}
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Window</th>
+          <th>Image</th>
+          <th>Kill Chain</th>
+          <th>Events</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in correlations %}
+        <tr>
+          <td>{{ c.corr_id or c.corrid }}</td>
+          <td class="meta">{{ c.start_time or c.starttime }} – {{ c.end_time or c.endtime }}</td>
+          <td>{{ c.base_image or c.baseimage }}</td>
+          <td>{{ c.kill_chain_stage or c.killchainstage }}</td>
+          <td class="meta">{{ c.event_ids or c.eventids }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p>No explicit cross-process correlations for this window.</p>
+    {% endif %}
+  </section>
+</div>
+</body>
+</html>
